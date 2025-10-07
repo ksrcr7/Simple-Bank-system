@@ -3,6 +3,9 @@
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
+#include <sstream>
+#include <stdexcept>
+#include <cctype>
 
 static inline string trim_copy(const string& id){
     auto start = find_if(id.begin(),id.end(),[]
@@ -34,6 +37,27 @@ static inline int days_in_month(int m, int y){
     }
 
 }
+
+
+
+static inline Account::AccountType parse_account_type_str(const std::string& s){
+    if (s == "Checking")     return Account::AccountType::CheckingAccount;
+    if (s == "Savings")      return Account::AccountType::SavingAccount;
+    if (s == "FixedDeposit") return Account::AccountType::FixedDepositAccount;
+    throw std::runtime_error("Unknown AccountType: " + s);
+}
+
+static inline Account::TransactionTypes parse_tx_type_str(const std::string& s){
+    if (s == "Deposit")     return Account::TransactionTypes::Deposit;
+    if (s == "Withdraw")    return Account::TransactionTypes::Withdraw;
+    if (s == "TransferIn")  return Account::TransactionTypes::TransferIn;
+    if (s == "TransferOut") return Account::TransactionTypes::TransferOut;
+    throw std::runtime_error("Unknown TransactionType: " + s);
+}
+
+
+
+
 
 static inline string pad2(int v){
     char buf[3];
@@ -98,13 +122,13 @@ bool Account::SetInitialBalance(long double amount, string *err ) {
     return true;
 }
 
-bool Account::Deposit(long double amount, string *err) {
-    if(is_closed){
+bool Account::Deposit(long double amount,const Date& date, string *err) {
+    if(Account_is_closed){
         if(err) *err = "Error! Account is already closed.";
         return false;
     }
-    if(!is_finite_ld(amount) || amount < 0){
-        if(err) *err = "Error! deposit must be finite positive number.";
+    if(!is_finite_ld(amount) || amount < 0.0L){
+        if(err) *err = "Error! deposit must be finite/positive number.";
         return false;
     }
     long double next = this->Balance + amount;
@@ -114,12 +138,19 @@ bool Account::Deposit(long double amount, string *err) {
     }
 
     this->Balance = next;
+
+    if(!AppendTransaction(TransactionTypes::Deposit,amount,"Cash",
+                          this->AccountNumber,date,err)){
+        this->Balance -=amount;
+        return false;
+    }
+
     if(err) err->clear();
     return true;
 }
 
-bool Account::Withdraw(long double wd, string *err) {
-    if(is_closed){
+bool Account::Withdraw(long double wd,const Date& date,string *err) {
+    if(Account_is_closed){
         if(err) *err = "Error! Account is already closed.";
         return false;
     }
@@ -143,6 +174,13 @@ bool Account::Withdraw(long double wd, string *err) {
     }
 
     this->Balance = next;
+
+    if(!AppendTransaction(TransactionTypes::Withdraw,wd,
+                          this->AccountNumber,"Cash",date,err)){
+        this->Balance += wd;
+        return false;
+    }
+
     if(err) err->clear();
     return true;
 
@@ -232,23 +270,32 @@ void Account::DisplayAccountInfo() const {
    cout<<left<<setw(15)<<"Balance:"<<this->Balance<<"$"<<endl;
    cout<<left<<setw(15)<<"Account Type:"<<Account::AccountTypeToString(AccType)<<endl;
    cout << left << setw(15) << "Openings Date:" << OpeningsDate.day << "/" << OpeningsDate.month << "/" << OpeningsDate.year << endl;
-   if(this->is_closed)
+   if(this->Account_is_closed)
        cout<<left<<setw(15)<<"Account status:"<<"Closed"<<endl;
    else
        cout<<left<<setw(15)<<"Account status:"<<"Open"<<endl;
 
 }
 
-bool Account::Transfer(Account &Destination,long double amount, string *err) {
+bool Account::Transfer(Account &Destination,long double amount,const Date& date, string *err) {
     auto fail = [&](const char* msg){
         if(err) *err = msg;
         return false;
     };
-    if(is_closed){
+
+    if(this->Account_is_closed){
         return fail("Error! Account is already closed");
     }
 
-    if(!is_finite_ld(amount) || amount<=0 )return fail("Error! the amount must be finite/positive number.");
+    if(Destination.Account_is_closed){
+        return fail("Error! Account of Destination is closed.");
+    }
+
+    if(this->AccountNumber == Destination.AccountNumber){
+        return fail("Error! AccountNumber is same as Destination.");
+    }
+
+    if(!is_finite_ld(amount) || amount<=0.0L )return fail("Error! the amount must be finite positive number.");
     constexpr long double EPS = 1e-12L;
     if(this->Balance + EPS < amount)return fail("Error! insufficient funds.");
 
@@ -258,6 +305,25 @@ bool Account::Transfer(Account &Destination,long double amount, string *err) {
 
     this->Balance = this->Balance - amount;
     Destination.Balance = Destination.Balance + amount;
+
+    size_t src_size_before = this->AccountTransactions.size();
+
+    if(!this->AppendTransaction(TransactionTypes::TransferOut,amount,
+                          this->AccountNumber,Destination.AccountNumber,date,err)){
+        this->Balance += amount;
+        Destination.Balance -= amount;
+        return false;
+    }
+    size_t dst_size_before = Destination.AccountTransactions.size();
+
+    if(!Destination.AppendTransaction(TransactionTypes::TransferIn,amount,
+                                      this->AccountNumber,Destination.AccountNumber,date,err)){
+        this->Balance += amount;
+        Destination.Balance -= amount;
+        this->AccountTransactions.resize(src_size_before);
+        return false;
+    }
+
     if(err) err->clear();
     return true;
 
@@ -265,7 +331,7 @@ bool Account::Transfer(Account &Destination,long double amount, string *err) {
 }
 
 bool Account::CloseAccount(string *err) {
-    if(is_closed){
+    if(Account_is_closed){
         if(err) *err = "Error! Account is already closed.";
         return false;
     }
@@ -275,7 +341,7 @@ bool Account::CloseAccount(string *err) {
         return false;
     }
 
-    is_closed = true;
+    Account_is_closed = true;
     if(err) err->clear();
     return true;
 
@@ -318,7 +384,7 @@ bool Account::TransactionValidation(const Account::Transaction &t, string *err) 
 bool Account::AppendTransaction(Account::TransactionTypes type, long double amount, const string &source,
                                 const string &destination,const Account::Date &date, string *err) {
 
-      if(this->is_closed){
+      if(this->Account_is_closed){
           if(err) *err = "Error! Account is already closed.";
           return false;
       }
@@ -340,3 +406,75 @@ bool Account::AppendTransaction(Account::TransactionTypes type, long double amou
 
 
 }
+
+const vector<Account::Transaction> &Account::GetTransactions() const {
+    return this->AccountTransactions;
+}
+
+void Account::DisplayTransactions() const {
+    for(const auto& it : this->AccountTransactions){
+        cout<<left<<setw(15)<<"Date:"<<it.trans.day<<"/"<<it.trans.month<<"/"<<it.trans.year<<endl;
+        cout<<left<<setw(15)<<"Amount:"<<it.amount<<endl;
+        cout<<left<<setw(15)<<"Source:"<<it.source<<endl;
+        cout<<left<<setw(15)<<"Destination:"<<it.destination<<endl;
+        cout<<left<<setw(15)<<"TransactionType:"<<Account::TransactionTypeToString(it.type)<<endl;
+        cout<<left<<setw(15)<<"Updated Balance:"<<it.balance_after<<endl;
+        cout<<"--------------------------------------"<<endl;
+    }
+
+
+}
+
+const char *Account::TransactionTypeToString(Account::TransactionTypes t) {
+    switch (t) {
+        case TransactionTypes::Deposit:return "Deposit";
+        case TransactionTypes::Withdraw:return "Withdraw";
+        case TransactionTypes::TransferIn:return "TransferIn";
+        case TransactionTypes::TransferOut:return "TransferOut";
+
+    }
+    return "Unknown";
+
+}
+
+void Account::SaveToFile(ostream &os) const {
+    os<<"Account Number:"<<this->AccountNumber<<endl;
+    os<<"Balance:"<<this->Balance<<endl;
+    os<<"AccountType:"<<Account::AccountTypeToString(AccType)<<endl;
+    os<<"Status:"<<(Account::Account_is_closed ? "Closed":"Open")<<endl;
+    os<<"OpeningsDate:"<<this->OpeningsDate.day<<"/"<<this->OpeningsDate.month<<"/"<<this->OpeningsDate.year<<endl;
+
+    os<<"Number of Transactions:"<<this->AccountTransactions.size()<<endl;
+    for(const auto& t: this->AccountTransactions){
+        os<<"Date:"<<t.trans.day<<"/"<<t.trans.month<<"/"<<t.trans.year<<endl;
+        os<<"Amount:"<<t.amount<<endl;
+        os<<"Source:"<<t.source<<endl;
+        os<<"Destination:"<<t.destination<<endl;
+        os<<"TransactionType:"<<Account::TransactionTypeToString(t.type)<<endl;
+        os<<"Updated Balance:"<<t.balance_after<<endl;
+        os<<"---"<<endl;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

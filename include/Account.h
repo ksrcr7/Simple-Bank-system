@@ -3,6 +3,7 @@
 
 #include "Person.h"
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -10,7 +11,7 @@
 class Account{
 public:
     Account()=default;
-    enum class TransactionTypes{Deposit,Withdraw,TransferIn,TransferOut,Open,Close};
+    enum class TransactionTypes{Deposit,Withdraw,TransferIn,TransferOut};
     enum class AccountType{CheckingAccount,SavingAccount,FixedDepositAccount};
 
     struct Date{
@@ -31,17 +32,22 @@ public:
     [[nodiscard]] long double GetBalance()const;
     [[nodiscard]] AccountType GetAccountType()const;
     [[nodiscard]] static const char* AccountTypeToString(AccountType);
+    [[nodiscard]] static const char* TransactionTypeToString(TransactionTypes);
     [[nodiscard]] const Date& GetOpeningsDate()const;
+    [[nodiscard]] const vector<Transaction> &GetTransactions()const;
     void DisplayAccountInfo()const;
+    void DisplayTransactions()const;
+    void SaveToFile(ostream&)const;
+
 
     bool SetOwner(Person,std::string *err= nullptr);
     bool SetInitialBalance(long double,string *err = nullptr);
     bool SetAccountNumber(string* err = nullptr);
     bool SetOpeningsDate(const string&,const string&,const string&,string* err = nullptr);
-    bool Deposit(long double,string* err = nullptr);
-    bool Withdraw(long double,string* err = nullptr);
+    bool Deposit(long double,const Date&,string* err = nullptr);
+    bool Withdraw(long double,const Date&,string* err = nullptr);
     bool SetAccountType(AccountType,string* err = nullptr);
-    bool Transfer(Account&,long double,string* err = nullptr);
+    bool Transfer(Account&,long double,const Date&,string* err = nullptr);
     bool CloseAccount(string* err = nullptr);
     bool AppendTransaction(TransactionTypes,long double,const string&,const string&,const Date&,string* err = nullptr);
 
@@ -55,9 +61,9 @@ private:
     long double Balance{};
     AccountType AccType{AccountType::CheckingAccount};
     Date OpeningsDate;
-    bool is_closed = {false};
+    bool Account_is_closed = {false};
     vector<Transaction> AccountTransactions;
-    bool TransactionValidation(const Transaction&,string* err = nullptr);
+    static bool TransactionValidation(const Transaction&,string* err = nullptr);
 
 };
 
