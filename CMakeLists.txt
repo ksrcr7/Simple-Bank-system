@@ -8,6 +8,9 @@ add_executable(Bank_account
         test/main.cpp
         src/Account.cpp
         src/Person.cpp
+        "include/Bank Management.h"
+        "src/Bank Management.cpp"
+        include/Utils.h
 
 )
 

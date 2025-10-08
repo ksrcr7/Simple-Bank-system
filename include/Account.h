@@ -5,18 +5,19 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <unordered_map>
 #include <vector>
+
+
 
 class Account{
 public:
     Account()=default;
-    enum class TransactionTypes{Deposit,Withdraw,TransferIn,TransferOut};
+    enum class TransactionTypes{Deposit,Withdraw,TransferIn,TransferOut,Open,Close};
     enum class AccountType{CheckingAccount,SavingAccount,FixedDepositAccount};
-
     struct Date{
         string day,month,year;
     };
+
     struct Transaction{
         Date trans;
         long double amount{};
