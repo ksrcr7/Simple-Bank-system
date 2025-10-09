@@ -36,6 +36,8 @@ public:
     [[nodiscard]] static const char* TransactionTypeToString(TransactionTypes);
     [[nodiscard]] const Date& GetOpeningsDate()const;
     [[nodiscard]] const vector<Transaction> &GetTransactions()const;
+    [[nodiscard]] bool is_closed()const;
+    void SetClosed(bool);
     void DisplayAccountInfo()const;
     void DisplayTransactions()const;
     void SaveToFile(ostream&)const;

@@ -66,3 +66,62 @@ bool Management::AddPerson(const Person &p,string* err) {
 
 
 }
+
+bool Management::CloseAccount(const string &owner_id, const string &account_number, const Date &date, string *err) {
+    if(owner_id.empty()){
+        if(err) *err = "Error! Id is empty.";
+        return false;
+    }
+
+    if(account_number.empty()){
+        if(err) *err = "Error! AccountNumber is empty.";
+        return false;
+    }
+
+    auto itlist = AccountsByOwner.find(owner_id);
+    if(itlist == AccountsByOwner.end()){
+        if(err) *err = "Error! owner has no accounts.";
+        return false;
+    }
+
+    auto itowner = MembersById.find(account_number);
+    if(itowner == MembersById.end()){
+        if(err) *err = "Error! owner not found.";
+        return false;
+    }
+
+    const auto& accounts = itlist->second;
+    if(find(accounts.begin(),accounts.end(),account_number) == accounts.end()){
+        if (err) *err = "Error! account does not belong to this owner.";
+        return false;
+    }
+
+    auto itAcc = KeepAccounts.find(account_number);
+    if(itAcc == KeepAccounts.end()){
+        if (err) *err = "Error! account not found.";
+        return false;
+    }
+
+    Account& acc = itAcc->second;
+    if(acc.is_closed()){
+        if (err) *err = "Error! account is already closed.";
+        return false;
+    }
+
+    constexpr long double EPS = 1e-12L;
+    if(fabsl(acc.GetBalance()) > EPS){
+        if (err) *err = "Error! balance must be zero before closing.";
+        return false;
+    }
+
+    if(!acc.AppendTransaction(Account::TransactionTypes::Close,0.0L,acc.GetAccountNumber(),"Closed",date,err)){
+        return false;
+    }
+
+    acc.SetClosed(true);
+    if(err) err->clear();
+    return true;
+
+}
+
+

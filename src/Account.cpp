@@ -401,6 +401,15 @@ void Account::SaveToFile(ostream &os) const {
     }
 }
 
+bool Account::is_closed() const {
+    return this->Account_is_closed;
+}
+
+void Account::SetClosed(bool v) {
+    this->Account_is_closed = v;
+
+}
+
 
 
 

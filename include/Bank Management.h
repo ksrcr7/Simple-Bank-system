@@ -21,6 +21,7 @@ private:
 
 public:
     bool OpenAccount(const Person&,long double,Account::AccountType,const Date&,string* err = nullptr);
+    bool CloseAccount(const string&,const string&,const Date&,string* err = nullptr);
     bool AddPerson(const Person&,string* err = nullptr);
 
 
