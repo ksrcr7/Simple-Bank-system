@@ -103,7 +103,7 @@ bool Management::CloseAccount(const string &owner_id, const string &account_numb
     }
 
     Account& acc = itAcc->second;
-    if(acc.is_closed()){
+    if(!acc.is_closed()){
         if (err) *err = "Error! account is already closed.";
         return false;
     }
@@ -123,5 +123,92 @@ bool Management::CloseAccount(const string &owner_id, const string &account_numb
     return true;
 
 }
+
+bool Management::DepositAccount(const string &account_number, long double amount, const Date &date, string *err) {
+    if(account_number.empty()){
+        if(err) *err = "Error! AccountNumber is empty.";
+        return false;
+    }
+
+    auto it = KeepAccounts.find(account_number);
+    if(it == KeepAccounts.end()){
+        if(err) *err = "Error! Account is not found.";
+        return false;
+    }
+
+    Account& acc = it->second;
+
+    if (!acc.Deposit(amount, date, err)) {
+        return false;
+    }
+
+    if(err) err->clear();
+    return true;
+
+
+
+
+}
+
+bool Management::WithdrawFromAccount(const string &account_number, long double amount, const Date &date, string *err) {
+
+    if(account_number.empty()){
+        if(err) *err = "Error! AccountNumber is empty.";
+        return false;
+    }
+
+    auto it = KeepAccounts.find(account_number);
+    if(it == KeepAccounts.end()){
+        if(err) *err = "Error! Account is not found.";
+        return false;
+    }
+
+    Account& acc = it->second;
+
+    if(!acc.Withdraw(amount,date,err))return false;
+
+    if(err) err->clear();
+    return true;
+
+}
+
+bool Management::TransferBetweenAccounts(const string &SourceAccNum, const string &DestinationAccNum,
+                                         long double amount, const Date &date, string *err) {
+
+    if(SourceAccNum.empty()){
+        if(err) *err = "Error! Source Account Number is empty.";
+        return false;
+    }
+
+    if(DestinationAccNum.empty()){
+        if(err) *err = "Error! Destination Account Number is empty.";
+        return false;
+    }
+
+    auto ItSource = KeepAccounts.find(SourceAccNum);
+    auto ItDestination = KeepAccounts.find(DestinationAccNum);
+
+    if(ItSource == KeepAccounts.end()){
+        if(err) *err = "Error! Source Account is not found.";
+        return false;
+    }
+
+    if(ItDestination == KeepAccounts.end()){
+        if(err) *err = "Error! Destination Account is not found.";
+        return false;
+    }
+
+    Account& acc1 = ItSource->second;
+    Account& acc2 = ItDestination->second;
+
+    if(!acc1.Transfer(acc2,amount,date,err))return false;
+
+    if(err) err->clear();
+    return true;
+
+
+
+}
+
 
 
